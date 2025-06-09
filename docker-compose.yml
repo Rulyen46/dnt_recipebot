@@ -1,0 +1,78 @@
+# Docker Compose file optimized for Raspberry Pi deployment
+# Use: docker compose up -d
+
+services:
+  eq-crafting-bot:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: eq-crafting-bot
+    restart: unless-stopped
+    
+    # Environment configuration
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=America/New_York  # Set your timezone
+    
+    # Resource limits for Raspberry Pi
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+    
+    # Volume mounts for persistent data
+    volumes:
+      - ./logs:/app/logs:rw
+      - /etc/localtime:/etc/localtime:ro  # Sync container time with Pi
+    
+    # Logging configuration optimized for Pi storage
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        compress: "true"
+    
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "python", "health_check.py", "--check", "pid", "--quiet"]
+      interval: 2m
+      timeout: 15s
+      retries: 2
+      start_period: 30s
+    
+    # Network configuration
+    networks:
+      - eq-bot-network
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # Bot needs to write logs
+    
+    # Labels for management
+    labels:
+      - "com.eqbot.description=EverQuest Forum Crafting Bot"
+      - "com.eqbot.version=1.0"
+
+# Network configuration
+networks:
+  eq-bot-network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 1500
+
+# Volume for persistent logs
+volumes:
+  bot-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./logs
