@@ -1,4 +1,4 @@
-async def _parse_recipe_with_names(self, data: Dict[str, Any]) -> Recipe:
+async def _parse_recipe_with_names(self, data):
         """Parse API response into Recipe object with component name lookups"""
         try:
             # Log the raw data structure for debugging
@@ -103,13 +103,15 @@ import asyncio
 import aiohttp
 import discord
 from discord.ext import commands
-from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 import json
 import re
 import signal
 import sys
+
+# Import typing - fix the Dict import issue
+from typing import Optional, Dict, Any, List, Tuple, Union
 
 # Load environment variables from .env file
 try:
@@ -180,7 +182,7 @@ class EQDBClient:
             'User-Agent': 'EverQuest-Crafting-Bot/1.0'
         }
     
-    async def _make_json_request(self, url: str, params: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    async def _make_json_request(self, url: str, params=None):
         """Make a JSON API request with proper error handling"""
         try:
             async with self.session.get(url, params=params, headers=self.headers) as response:
@@ -230,7 +232,7 @@ class EQDBClient:
             logger.error(f"Unexpected error during API request: {e}")
             return None
         
-    async def search_item(self, item_name: str) -> Optional[Dict[str, Any]]:
+    async def search_item(self, item_name: str):
         """Search for an item by name to get its ID"""
         try:
             url = f"{self.base_url}{self.items_endpoint}"
@@ -270,7 +272,7 @@ class EQDBClient:
             logger.error(f"Error searching for item '{item_name}': {e}")
             return None
     
-    async def get_item_by_id(self, item_id: str) -> Optional[Dict[str, Any]]:
+    async def get_item_by_id(self, item_id: str):
         """Get item details by ID"""
         try:
             url = f"{self.base_url}{self.items_endpoint}"
@@ -307,7 +309,7 @@ class EQDBClient:
             logger.error(f"Error looking up item ID '{item_id}': {e}")
             return None
     
-    async def get_recipe(self, item_id: str) -> Optional[Recipe]:
+    async def get_recipe(self, item_id: str):
         """Get crafting recipe for an item using the trades endpoint"""
         try:
             url = f"{self.base_url}{self.trades_endpoint}"
@@ -405,7 +407,7 @@ class EQDBClient:
                 components=[]
             )
     
-    def _get_field_value(self, data: Dict[str, Any], field_names: List[str], default: Any = None) -> Any:
+    def _get_field_value(self, data, field_names, default=None):
         """Get a field value from JSON data, trying multiple possible field names"""
         for field_name in field_names:
             if field_name in data and data[field_name] is not None:
@@ -531,7 +533,7 @@ class CraftingBot(commands.Bot):
             except:
                 pass  # Ignore errors when trying to send error message
     
-    def parse_forum_post_title(self, title: str) -> Optional[Tuple[str, str]]:
+    def parse_forum_post_title(self, title: str):
         """Parse forum post title for crafting requests"""
         # Pattern 1: "Item Name for Character"
         pattern1 = r'(.+?)\s+for\s+(\w+)'
@@ -576,7 +578,7 @@ class CraftingBot(commands.Bot):
         )
         await ctx.send(embed=embed)
 
-def parse_request_command(message: str) -> Optional[Tuple[str, str]]:
+def parse_request_command(message: str):
     """Parse !request command from message - DEPRECATED - keeping for backwards compatibility only"""
     # This function is no longer used as the bot is forum-only
     return None
