@@ -103,11 +103,20 @@ import asyncio
 import aiohttp
 import discord
 from discord.ext import commands
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 import json
 import re
+import signal
+import sys
+
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    logging.warning("python-dotenv not installed. Environment variables must be set manually.")
 
 # Configure logging
 logging.basicConfig(
@@ -522,7 +531,7 @@ class CraftingBot(commands.Bot):
             except:
                 pass  # Ignore errors when trying to send error message
     
-    def parse_forum_post_title(self, title: str) -> Optional[tuple]:
+    def parse_forum_post_title(self, title: str) -> Optional[Tuple[str, str]]:
         """Parse forum post title for crafting requests"""
         # Pattern 1: "Item Name for Character"
         pattern1 = r'(.+?)\s+for\s+(\w+)'
@@ -567,7 +576,7 @@ class CraftingBot(commands.Bot):
         )
         await ctx.send(embed=embed)
 
-def parse_request_command(message: str) -> Optional[tuple]:
+def parse_request_command(message: str) -> Optional[Tuple[str, str]]:
     """Parse !request command from message - DEPRECATED - keeping for backwards compatibility only"""
     # This function is no longer used as the bot is forum-only
     return None
@@ -924,19 +933,68 @@ async def on_message(message):
     # Always process manual commands regardless of forum configuration
     await bot.process_commands(message)
 
+def validate_environment():
+    """Validate required environment variables"""
+    required_vars = {
+        'DISCORD_BOT_TOKEN': 'Discord bot token is required',
+        'WATCHED_FORUM_ID': 'Forum ID to watch is required'
+    }
+    
+    missing_vars = []
+    for var, description in required_vars.items():
+        if not os.getenv(var):
+            missing_vars.append(f"  - {var}: {description}")
+    
+    if missing_vars:
+        logger.error("Missing required environment variables:")
+        for var in missing_vars:
+            logger.error(var)
+        logger.error("Please check your .env file or environment configuration")
+        return False
+    
+    return True
+
+def setup_signal_handlers(bot):
+    """Setup graceful shutdown on SIGTERM/SIGINT"""
+    def signal_handler(signum, frame):
+        logger.info(f"Received signal {signum}. Initiating graceful shutdown...")
+        asyncio.create_task(bot.close())
+    
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
 def main():
     """Main entry point"""
-    # Get bot token from environment variable
+    logger.info("Starting EverQuest Forum Crafting Bot...")
+    
+    # Validate environment variables
+    if not validate_environment():
+        sys.exit(1)
+    
+    # Get bot token
     token = os.getenv('DISCORD_BOT_TOKEN')
     
-    if not token:
-        logger.error("DISCORD_BOT_TOKEN environment variable not set!")
-        return
+    # Create bot instance
+    bot = CraftingBot()
+    
+    # Setup signal handlers for graceful shutdown
+    setup_signal_handlers(bot)
     
     try:
-        bot.run(token)
+        # Run the bot
+        logger.info("Connecting to Discord...")
+        bot.run(token, log_handler=None)  # We handle logging ourselves
+    except discord.LoginFailure:
+        logger.error("Invalid Discord bot token! Please check your DISCORD_BOT_TOKEN environment variable.")
+        sys.exit(1)
+    except discord.PrivilegedIntentsRequired:
+        logger.error("Bot requires privileged intents! Please enable 'Message Content Intent' in Discord Developer Portal.")
+        sys.exit(1)
     except Exception as e:
         logger.error(f"Failed to start bot: {e}")
+        sys.exit(1)
+    finally:
+        logger.info("Bot has shut down")
 
 if __name__ == "__main__":
     main()
